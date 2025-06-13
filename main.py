@@ -1,11 +1,11 @@
 import os
 import logging
 import openai
-import threading
 import requests
 from datetime import datetime, timedelta
-from flask import Flask
-from aiogram import Bot, Dispatcher, types, executor
+from flask import Flask, request
+from aiogram import Bot, Dispatcher, types
+from aiogram.dispatcher.webhook import get_new_configured_app
 from dotenv import load_dotenv
 
 # Загрузка переменных из .env
@@ -16,72 +16,36 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID"))
 YCLIENTS_COMPANY_ID = os.getenv("YCLIENTS_COMPANY_ID")
 YCLIENTS_API_TOKEN = os.getenv("YCLIENTS_API_TOKEN")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # пример: https://lume-bot.onrender.com/webhook
 PORT = int(os.getenv("PORT", 5000))
 
 # Логирование
 logging.basicConfig(level=logging.INFO)
-
-# Отключение Webhook у Telegram-бота (для polling)
-def delete_webhook():
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/deleteWebhook"
-    try:
-        resp = requests.post(url)
-        if resp.status_code == 200:
-            logging.info("Webhook успешно отключён")
-        else:
-            logging.warning(f"Ошибка при удалении webhook: {resp.text}")
-    except Exception as e:
-        logging.error(f"Ошибка при попытке отключить webhook: {e}")
-
-# Проверка авторизации YCLIENTS
-
-def test_yclients_auth():
-    url = "https://api.yclients.com/api/v1/services"
-    params = {"company_id": YCLIENTS_COMPANY_ID}
-    resp = requests.get(url, headers={
-        'Authorization': f'Bearer {YCLIENTS_API_TOKEN}',
-        'Content-Type': 'application/json'
-    }, params=params)
-    logging.info("Тест YCLIENTS авторизации:")
-    logging.info(f"Статус: {resp.status_code}")
-    logging.info(f"Ответ: {resp.text}")
 
 # Инициализация бота и диспетчера
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot)
 openai.api_key = OPENAI_API_KEY
 
-# Временное хранение состояния пользователей
 user_states = {}
 
-# Хедеры для запросов к YCLIENTS
 HEADERS = {
     'Authorization': f'Bearer {YCLIENTS_API_TOKEN}',
     'Content-Type': 'application/json'
 }
 
-# Функция получения списка услуг с YCLIENTS
-
 def get_services():
-    url = "https://api.yclients.com/api/v1/services"
-    params = {
-        "company_id": YCLIENTS_COMPANY_ID
-    }
-    resp = requests.get(url, headers=HEADERS, params=params)
+    url = f"https://api.yclients.com/api/v1/companies/{YCLIENTS_COMPANY_ID}/services"
+    resp = requests.get(url, headers=HEADERS)
     if resp.status_code == 200:
         return resp.json().get('data', [])
     else:
         logging.error(f"Ошибка получения услуг YCLIENTS: {resp.status_code} {resp.text}")
         return []
 
-# Функция получения свободных окон по услуге и дате
-
 def get_available_slots(service_id, date_str):
     url = f"https://api.yclients.com/api/v1/records/{YCLIENTS_COMPANY_ID}/available_times"
-    params = {
-        "service_ids": [service_id],
-        "date": date_str
-    }
+    params = {"service_ids": [service_id], "date": date_str}
     resp = requests.post(url, headers=HEADERS, json=params)
     if resp.status_code == 200:
         return resp.json().get('data', [])
@@ -89,7 +53,6 @@ def get_available_slots(service_id, date_str):
         logging.error(f"Ошибка получения свободных окон YCLIENTS: {resp.status_code} {resp.text}")
         return []
 
-# Команда /start
 @dp.message_handler(commands=['start'])
 async def start_handler(message: types.Message):
     user_states[message.chat.id] = {'step': 'choose_service'}
@@ -171,18 +134,23 @@ async def main_handler(message: types.Message):
 
         user_states.pop(chat_id, None)
 
-# Flask-сервер для Render
+# Flask + Webhook
 app = Flask(__name__)
 
-@app.route("/")
+@app.route('/')
 def index():
-    return "Bot is running!"
+    return 'Bot is running!'
 
-def run_flask():
-    app.run(host="0.0.0.0", port=PORT)
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    return get_new_configured_app(dispatcher=dp)(request)
 
 if __name__ == '__main__':
-    delete_webhook()
-    test_yclients_auth()  # <- Тест перед запуском
-    threading.Thread(target=run_flask).start()
-    executor.start_polling(dp, skip_updates=True)
+    import asyncio
+    async def on_startup(dp):
+        await bot.set_webhook(WEBHOOK_URL)
+        logging.info("Webhook установлен")
+
+    from aiogram import executor
+    executor.set_webhook(dp, webhook_path='/webhook', on_startup=on_startup, skip_updates=True, host="0.0.0.0", port=PORT)
+    app.run(host='0.0.0.0', port=PORT)
