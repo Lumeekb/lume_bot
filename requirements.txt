@@ -2,4 +2,4 @@ aiogram==2.25.2
 python-dotenv
 flask
 requests
-
+openai
