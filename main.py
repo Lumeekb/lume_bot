@@ -3,9 +3,8 @@ import logging
 import openai
 import requests
 from datetime import datetime, timedelta
-from flask import Flask, request
 from aiogram import Bot, Dispatcher, types
-from aiogram.dispatcher.webhook import get_new_configured_app
+from aiogram.utils.executor import start_webhook
 from dotenv import load_dotenv
 
 # Загрузка переменных из .env
@@ -18,6 +17,9 @@ YCLIENTS_COMPANY_ID = os.getenv("YCLIENTS_COMPANY_ID")
 YCLIENTS_API_TOKEN = os.getenv("YCLIENTS_API_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # пример: https://lume-bot.onrender.com/webhook
 PORT = int(os.getenv("PORT", 5000))
+WEBHOOK_PATH = "/webhook"
+WEBAPP_HOST = "0.0.0.0"
+WEBAPP_PORT = PORT
 
 # Логирование
 logging.basicConfig(level=logging.INFO)
@@ -127,32 +129,29 @@ async def main_handler(message: types.Message):
         user_states[chat_id]['phone'] = text
 
         data = user_states[chat_id]
-        msg = f"\ud83d\udcc5 Новая запись:\n\n\ud83d\udca1 Услуга: {data['selected_service']['name']}\n\ud83d\uddd3 Дата: {data['selected_date']}\n\ud83d\udd52 Время: {data['selected_time']}\n\ud83d\udc64 Имя: {data['name']}\n\ud83d\udcf1 Телефон: {data['phone']}"
+        msg = f"📅 Новая запись:\n\n💡 Услуга: {data['selected_service']['name']}\n🗓 Дата: {data['selected_date']}\n🕒 Время: {data['selected_time']}\n👤 Имя: {data['name']}\n📱 Телефон: {data['phone']}"
 
         await bot.send_message(chat_id, "Спасибо! Мы свяжемся с вами для подтверждения записи. ✨")
         await bot.send_message(ADMIN_CHAT_ID, msg)
 
         user_states.pop(chat_id, None)
 
-# Flask + Webhook
-app = Flask(__name__)
+# Webhook запуск
+async def on_startup(dp):
+    await bot.set_webhook(WEBHOOK_URL)
+    logging.info("Webhook установлен")
 
-@app.route('/')
-def index():
-    return 'Bot is running!'
-
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    return get_new_configured_app(dispatcher=dp)(request)
+async def on_shutdown(dp):
+    await bot.delete_webhook()
+    logging.info("Webhook удалён")
 
 if __name__ == '__main__':
-    import asyncio
-    from aiogram import executor
-
-    async def on_startup(dp):
-        await bot.set_webhook(WEBHOOK_URL)
-        logging.info("Webhook установлен")
-
-    loop = asyncio.get_event_loop()
-    loop.create_task(on_startup(dp))
-    app.run(host='0.0.0.0', port=PORT)
+    start_webhook(
+        dispatcher=dp,
+        webhook_path=WEBHOOK_PATH,
+        on_startup=on_startup,
+        on_shutdown=on_shutdown,
+        skip_updates=True,
+        host=WEBAPP_HOST,
+        port=WEBAPP_PORT,
+    )
