@@ -1,6 +1,8 @@
 import os
 import logging
 import openai
+import threading
+from flask import Flask
 from aiogram import Bot, Dispatcher, types, executor
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from dotenv import load_dotenv
@@ -10,6 +12,7 @@ load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")  # Your Telegram user ID as string
+PORT = int(os.getenv("PORT", 5000))
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -67,5 +70,17 @@ async def get_intent_from_openai(text):
     except Exception as e:
         return "Не удалось определить услугу. Клиент написал: " + text
 
+# Minimal Flask server to keep Render Web Service alive
+app = Flask(__name__)
+
+@app.route("/")
+def status():
+    return "Bot is running!"
+
+def run_flask():
+    app.run(host="0.0.0.0", port=PORT)
+
 if __name__ == '__main__':
+    threading.Thread(target=run_flask).start()
     executor.start_polling(dp, skip_updates=True)
+
