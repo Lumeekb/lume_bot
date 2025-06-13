@@ -1,6 +1,5 @@
 aiogram==2.25.2
 python-dotenv
-open
 flask
 requests
 
