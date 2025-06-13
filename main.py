@@ -50,8 +50,11 @@ HEADERS = {
 # Функция получения списка услуг с YCLIENTS
 
 def get_services():
-    url = f"https://api.yclients.com/api/v1/companies/{YCLIENTS_COMPANY_ID}/services"
-    resp = requests.get(url, headers=HEADERS)
+    url = "https://api.yclients.com/api/v1/services"
+    params = {
+        "company_id": YCLIENTS_COMPANY_ID
+    }
+    resp = requests.get(url, headers=HEADERS, params=params)
     if resp.status_code == 200:
         return resp.json().get('data', [])
     else:
