@@ -1,3 +1,6 @@
 aiogram==2.25.2
 python-dotenv
-openai
+open
+flask
+requests
+
