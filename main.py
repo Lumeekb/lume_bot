@@ -127,7 +127,7 @@ async def main_handler(message: types.Message):
         user_states[chat_id]['phone'] = text
 
         data = user_states[chat_id]
-        msg = f"📅 Новая запись:\n\n💡 Услуга: {data['selected_service']['name']}\n🗓 Дата: {data['selected_date']}\n🕒 Время: {data['selected_time']}\n👤 Имя: {data['name']}\n📱 Телефон: {data['phone']}"
+        msg = f"\ud83d\udcc5 Новая запись:\n\n\ud83d\udca1 Услуга: {data['selected_service']['name']}\n\ud83d\uddd3 Дата: {data['selected_date']}\n\ud83d\udd52 Время: {data['selected_time']}\n\ud83d\udc64 Имя: {data['name']}\n\ud83d\udcf1 Телефон: {data['phone']}"
 
         await bot.send_message(chat_id, "Спасибо! Мы свяжемся с вами для подтверждения записи. ✨")
         await bot.send_message(ADMIN_CHAT_ID, msg)
@@ -147,10 +147,12 @@ def webhook():
 
 if __name__ == '__main__':
     import asyncio
+    from aiogram import executor
+
     async def on_startup(dp):
         await bot.set_webhook(WEBHOOK_URL)
         logging.info("Webhook установлен")
 
-    from aiogram import executor
-    executor.set_webhook(dp, webhook_path='/webhook', on_startup=on_startup, skip_updates=True, host="0.0.0.0", port=PORT)
+    loop = asyncio.get_event_loop()
+    loop.create_task(on_startup(dp))
     app.run(host='0.0.0.0', port=PORT)
