@@ -33,6 +33,19 @@ def delete_webhook():
     except Exception as e:
         logging.error(f"Ошибка при попытке отключить webhook: {e}")
 
+# Проверка авторизации YCLIENTS
+
+def test_yclients_auth():
+    url = "https://api.yclients.com/api/v1/services"
+    params = {"company_id": YCLIENTS_COMPANY_ID}
+    resp = requests.get(url, headers={
+        'Authorization': f'Bearer {YCLIENTS_API_TOKEN}',
+        'Content-Type': 'application/json'
+    }, params=params)
+    logging.info("Тест YCLIENTS авторизации:")
+    logging.info(f"Статус: {resp.status_code}")
+    logging.info(f"Ответ: {resp.text}")
+
 # Инициализация бота и диспетчера
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot)
@@ -170,5 +183,6 @@ def run_flask():
 
 if __name__ == '__main__':
     delete_webhook()
+    test_yclients_auth()  # <- Тест перед запуском
     threading.Thread(target=run_flask).start()
     executor.start_polling(dp, skip_updates=True)
